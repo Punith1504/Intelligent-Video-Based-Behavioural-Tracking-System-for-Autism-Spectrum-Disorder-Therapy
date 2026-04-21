@@ -1,0 +1,90 @@
+# Pseudocode for processing a therapy video 
+session 
+initialize camera or video source 
+pose_model = load_pose_model()   # e.g. OpenPose 
+or equivalent 
+face_model = load_face_model()   # e.g. 
+emotion/gaze detector 
+session_log = new SessionLog(child_id, date_time) 
+ 
+while session_active: 
+    frame = capture_frame() 
+    if frame is None: break 
+    pose = pose_model.detect(frame)     # detect 
+body keypoints 
+    face_data = face_model.analyze(frame)  # 
+detect face, emotion, gaze 
+    behaviors = [] 
+    # Example: Detect eye contact if face is 
+present and gaze ahead 
+    if face_data.gaze_forward and 
+face_data.eye_contact_confidence > 0.8: 
+        behaviors.append("EyeContact") 
+    # Example: Detect gesture if right arm angle 
+near horizontal and hand open 
+    if pose.right_elbow and 
+is_gesture_pointing(pose): 
+        behaviors.append("PointingGesture") 
+    # Add a learned behavior classifier 
+    detected = classify_behaviors(pose, face_data)  
+# e.g. CNN/LSTM model 
+    behaviors.extend(detected) 
+    # Log each behavior event 
+    for behavior in behaviors: 
+        
+session_log.record_event(timestamp=current_time(), 
+event=behavior) 
+ 
+# After session: 
+session_log.save_to_database() 
+generate_report(session_log) 
+ 
+# Example of pseudocode for behavior classifier 
+using pose sequence 
+def classify_behaviors(pose_sequence, 
+face_sequence): 
+26 
+ 
+    # Input: sequences of keypoints and face 
+vectors over recent frames 
+    # Output: list of detected behaviors this 
+timestep 
+    features = extract_features(pose_sequence, 
+face_sequence) 
+    results = [] 
+    if features.match_pattern("hand_flap"): 
+        results.append("HandFlapping") 
+    if features.match_pattern("head_nod"): 
+        results.append("HeadNodding") 
+    # ... additional classifiers 
+    return results 
+ 
+// Sketch of system initialization (Java-like 
+pseudocode) 
+public class TherapyTrackerApp { 
+    private CameraController camera; 
+    private PoseEstimator poseEstimator; 
+    private BehaviorClassifier classifier; 
+    private DatabaseManager db; 
+    private UserInterface ui; 
+ 
+    public void startSession(String childId) { 
+        SessionRecord session = 
+db.createSession(childId); 
+        camera.open(); 
+        while(ui.isRecording()) { 
+            Frame frame = camera.getFrame(); 
+            Pose pose = 
+poseEstimator.process(frame); 
+            List<String> events = 
+classifier.detect(pose); 
+            for(String event : events) { 
+                session.logEvent(event, now()); 
+            } 
+        } 
+        camera.close(); 
+        db.save(session); 
+        
+ui.displayReport(session.generateReport()); 
+    } 
+}
