@@ -1,0 +1,149 @@
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+
+np.random.seed(42) # for reproducibility
+
+num_samples = 200 # Number of simulated therapy sessions/children
+
+# Simulate features for a 'neurotypical' group (lower scores for ASD-related behaviors)
+neurotypical_data = {
+    'eye_contact_freq': np.random.normal(0.8, 0.1, num_samples // 2),
+    'hand_flapping_duration': np.random.normal(2, 1, num_samples // 2).clip(0, 10),
+    'pointing_gesture_count': np.random.normal(5, 2, num_samples // 2).clip(0, 10),
+    'head_nod_freq': np.random.normal(0.6, 0.1, num_samples // 2),
+    'gaze_aversion_ratio': np.random.normal(0.1, 0.05, num_samples // 2).clip(0, 0.5),
+    'repetitive_motion_score': np.random.normal(1, 0.5, num_samples // 2).clip(0, 3),
+    'social_engagement_score': np.random.normal(0.9, 0.1, num_samples // 2),
+    'is_asd_related_behavior': 0 # 0 for neurotypical-like behaviors
+}
+
+# Simulate features for an 'ASD-related' group (higher scores for ASD-related behaviors)
+asd_data = {
+    'eye_contact_freq': np.random.normal(0.3, 0.1, num_samples // 2),
+    'hand_flapping_duration': np.random.normal(15, 5, num_samples // 2).clip(5, 30),
+    'pointing_gesture_count': np.random.normal(1, 1, num_samples // 2).clip(0, 5),
+    'head_nod_freq': np.random.normal(0.2, 0.1, num_samples // 2),
+    'gaze_aversion_ratio': np.random.normal(0.6, 0.1, num_samples // 2).clip(0.3, 1.0),
+    'repetitive_motion_score': np.random.normal(5, 1.5, num_samples // 2).clip(2, 8),
+    'social_engagement_score': np.random.normal(0.3, 0.1, num_samples // 2),
+    'is_asd_related_behavior': 1 # 1 for ASD-related behaviors
+}
+
+# Combine into a single DataFrame
+df_neurotypical = pd.DataFrame(neurotypical_data)
+df_asd = pd.DataFrame(asd_data)
+df = pd.concat([df_neurotypical, df_asd], ignore_index=True)
+
+# Shuffle the dataset
+df = df.sample(frac=1, random_state=42).reset_index(drop=True)
+
+print("--- Simulated Dataset Head ---")
+print(df.head())
+print("\n--- Dataset Info ---")
+df.info()
+print("\n--- Dataset Description ---")
+print(df.describe())
+
+# --- 2. Prepare Data for ML Model ---
+
+# Define features (X) and target (y)
+X = df.drop('is_asd_related_behavior', axis=1)
+y = df['is_asd_related_behavior']
+
+# Split data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+
+print(f"\nTraining set size: {len(X_train)} samples")
+print(f"Testing set size: {len(X_test)} samples")
+
+# Scale numerical features
+# It's good practice to scale features for many ML algorithms, especially those
+# sensitive to feature magnitudes like Logistic Regression, SVMs, Neural Networks.
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# Convert scaled arrays back to DataFrames for easier inspection (optional)
+X_train_scaled_df = pd.DataFrame(X_train_scaled, columns=X.columns, index=X_train.index)
+X_test_scaled_df = pd.DataFrame(X_test_scaled, columns=X.columns, index=X_test.index)
+
+print("\n--- Scaled Training Data Head ---")
+print(X_train_scaled_df.head())
+
+# --- 3. Train the ML Model ---
+
+# We'll use Logistic Regression for simplicity and interpretability.
+# For more complex patterns, consider RandomForestClassifier, GradientBoostingClassifier,
+# or a simple neural network (e.g., MLPClassifier from sklearn.neural_network).
+
+model = LogisticRegression(random_state=42, solver='liblinear') # 'liblinear' is good for small datasets
+print("\n--- Training Logistic Regression Model ---")
+model.fit(X_train_scaled, y_train)
+print("Model training complete.")
+
+# --- 4. Evaluate the Model ---
+
+# Make predictions on the test set
+y_pred = model.predict(X_test_scaled)
+y_pred_proba = model.predict_proba(X_test_scaled)[:, 1] # Probability of being class 1 (ASD-related)
+
+print("\n--- Model Evaluation ---")
+print(f"Accuracy: {accuracy_score(y_test, y_pred):.4f}")
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred))
+
+print("\nConfusion Matrix:")
+cm = confusion_matrix(y_test, y_pred)
+print(cm)
+
+# Visualize Confusion Matrix
+plt.figure(figsize=(6, 5))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', cbar=False,
+            xticklabels=['Predicted Neurotypical', 'Predicted ASD-Related'],
+            yticklabels=['Actual Neurotypical', 'Actual ASD-Related'])
+plt.xlabel('Predicted Label')
+plt.ylabel('True Label')
+plt.title('Confusion Matrix')
+plt.show()
+
+# --- 5. Example Prediction for a New Sample ---
+
+# Imagine a new child's session data comes in from the video processing system
+new_child_data = pd.DataFrame([[0.4, 10.5, 2, 0.3, 0.45, 4.0, 0.5]],
+                              columns=X.columns)
+
+# Scale the new data using the SAME scaler fitted on training data
+new_child_data_scaled = scaler.transform(new_child_data)
+
+# Predict
+prediction = model.predict(new_child_data_scaled)
+prediction_proba = model.predict_proba(new_child_data_scaled)[:, 1]
+
+print("\n--- Example Prediction for a New Child ---")
+print(f"Input Features: {new_child_data.values[0]}")
+print(f"Predicted Class (0=Neurotypical-like, 1=ASD-related): {prediction[0]}")
+print(f"Probability of ASD-related behavior: {prediction_proba[0]:.4f}")
+
+if prediction[0] == 1:
+    print("This child's behavioral patterns are classified as potentially ASD-related.")
+else:
+    print("This child's behavioral patterns are classified as neurotypical-like.")
+
+# --- Model Interpretation (for Logistic Regression) ---
+# Coefficients indicate the importance and direction of each feature
+print("\n--- Model Coefficients (after scaling) ---")
+coefficients = pd.DataFrame({'Feature': X.columns, 'Coefficient': model.coef_[0]})
+coefficients['Absolute_Coefficient'] = np.abs(coefficients['Coefficient'])
+coefficients = coefficients.sort_values(by='Absolute_Coefficient', ascending=False)
+print(coefficients)
+
+# A positive coefficient means that as the feature value increases, the likelihood of
+# the 'ASD-related' class (1) increases. A negative coefficient means the opposite.
+# The magnitude indicates importance.
